@@ -1,8 +1,8 @@
-#  GET KUKOIN DATA
 from sqlalchemy import create_engine
 from sqlalchemy.orm import sessionmaker
 from src.config import DATABASE_URL
 from src.api.factory import get_fetcher, save_candles_to_db
+from src.analysis.patterns import calculate_rsi, calculate_fibonacci_levels
 
 # اتصال به دیتابیس
 engine = create_engine(DATABASE_URL)
@@ -20,9 +20,45 @@ save_candles_to_db(session, candles)
 from src.database.models import CryptoPrice
 records = session.query(CryptoPrice).all()
 for record in records:
-    print(record.coin_id, record.timestamp, record.candle_type, record.open, record.close)
+    print(record.coin_id, record.timestamp, record.candle_type, record.open, record.close, record.volume)
+
+# محاسبه RSI
+rsi = calculate_rsi(session, "BTC")
+print(f"RSI فعلی برای BTC: {rsi}")
+
+# محاسبه سطوح فیبوناچی
+fib_levels = calculate_fibonacci_levels(session, "BTC")
+print("سطوح فیبوناچی برای BTC:")
+for level, price in fib_levels.items():
+    print(f"{level}: {price}")
 
 session.close()
+
+# #  GET KUKOIN DATA
+# from sqlalchemy import create_engine
+# from sqlalchemy.orm import sessionmaker
+# from src.config import DATABASE_URL
+# from src.api.factory import get_fetcher, save_candles_to_db
+#
+# # اتصال به دیتابیس
+# engine = create_engine(DATABASE_URL)
+# Session = sessionmaker(bind=engine)
+# session = Session()
+#
+# # گرفتن داده‌ها از KuCoin
+# fetcher = get_fetcher("kucoin")
+# candles = fetcher.fetch_candles(symbol="BTC/USDT", interval="1h", limit=10)
+#
+# # ذخیره در دیتابیس
+# save_candles_to_db(session, candles)
+#
+# # چاپ رکوردها برای تست
+# from src.database.models import CryptoPrice
+# records = session.query(CryptoPrice).all()
+# for record in records:
+#     print(record.coin_id, record.timestamp, record.candle_type, record.open, record.close)
+#
+# session.close()
 
 
 

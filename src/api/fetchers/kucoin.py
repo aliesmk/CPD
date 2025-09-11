@@ -36,8 +36,13 @@ class KucoinFetcher(BaseFetcher):
            close_price = float(candle[2])
            high_price = float(candle[3])
            low_price = float(candle[4])
+           volume = float(candle[6])
            currency = symbol.split("/")[1] if "/" in symbol else "USDT"
-           candle_type = "bullish" if close_price > open_price else "bearish"
+           price_diff = abs(close_price - open_price) / open_price * 100
+           if price_diff < 0.1:
+               candle_type = "neutral"
+           else:
+               candle_type = "bullish" if close_price > open_price else "bearish"
            upper_shadow = high_price - max(open_price, close_price)
            lower_shadow = min(open_price, close_price) - low_price
 
@@ -51,6 +56,7 @@ class KucoinFetcher(BaseFetcher):
                "timestamp": timestamp,
                "candle_type": candle_type,
                "upper_shadow": upper_shadow,
-               "lower_shadow": lower_shadow
+               "lower_shadow": lower_shadow,
+               "volume": volume
            })
        return result
