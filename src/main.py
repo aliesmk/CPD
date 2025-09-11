@@ -2,24 +2,27 @@
 from sqlalchemy import create_engine
 from sqlalchemy.orm import sessionmaker
 from src.config import DATABASE_URL
-from src.api.fetchers import get_fetcher, save_candles_to_db
+from src.api.factory import get_fetcher, save_candles_to_db
 
+# اتصال به دیتابیس
 engine = create_engine(DATABASE_URL)
 Session = sessionmaker(bind=engine)
 session = Session()
 
+# گرفتن داده‌ها از KuCoin
 fetcher = get_fetcher("kucoin")
 candles = fetcher.fetch_candles(symbol="BTC/USDT", interval="1h", limit=10)
 
+# ذخیره در دیتابیس
 save_candles_to_db(session, candles)
 
+# چاپ رکوردها برای تست
 from src.database.models import CryptoPrice
 records = session.query(CryptoPrice).all()
 for record in records:
     print(record.coin_id, record.timestamp, record.candle_type, record.open, record.close)
 
 session.close()
-
 
 
 
