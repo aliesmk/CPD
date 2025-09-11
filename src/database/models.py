@@ -18,6 +18,7 @@ class CryptoPrice(Base):
     candle_type = Column(String, nullable=False)
     upper_shadow = Column(Float, nullable=False, server_default='0.0')
     lower_shadow = Column(Float, nullable=False, server_default='0.0')
+    volume = Column(Float, nullable=False, server_default='0.0')
 
     __table_args__ = (
         UniqueConstraint('coin_id', 'timestamp', name='uix_coin_timestamp'),
