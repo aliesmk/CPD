@@ -23,3 +23,18 @@ class CryptoPrice(Base):
     __table_args__ = (
         UniqueConstraint('coin_id', 'timestamp', name='uix_coin_timestamp'),
     )
+
+
+class Coin(Base):
+    __tablename__ = 'coins'
+
+    id = Column(Integer, primary_key=True)
+    symbol = Column(String, nullable=False, unique=True)
+    name = Column(String, nullable=False)
+    base_currency = Column(String, nullable=False)
+    quote_currency = Column(String, nullable=False)
+    status = Column(String, default='tradable')
+
+    __table_args__ = (
+        UniqueConstraint('symbol', name='uix_symbol'),
+    )
