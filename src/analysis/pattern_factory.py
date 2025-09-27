@@ -4,15 +4,27 @@ from sqlalchemy.orm import Session
 from src.database.models import CryptoPrice
 from .patterns.gartley import GartleyPattern
 from .patterns.butterfly import ButterflyPattern
+from .patterns.head_and_shoulders import HeadAndShouldersPattern
+from .patterns.double_top_bottom import DoubleTopBottomPattern
+from .patterns.ascending_triangle import AscendingTrianglePattern
+from .patterns.bullish_engulfing import BullishEngulfingPattern
 
 def get_pattern_detector(pattern_name: str) -> 'BasePattern':
-   """Factory برای انتخاب الگوی هارمونیک"""
-   if pattern_name.lower() == "gartley":
-       return GartleyPattern()
-   elif pattern_name.lower() == "butterfly":
-       return ButterflyPattern()
-   else:
-       raise ValueError(f"الگوی {pattern_name} پشتیبانی نمی‌شود")
+    """Factory برای انتخاب الگوی تحلیل تکنیکال"""
+    if pattern_name.lower() == "gartley":
+        return GartleyPattern()
+    elif pattern_name.lower() == "butterfly":
+        return ButterflyPattern()
+    elif pattern_name.lower() == "head_and_shoulders":
+        return HeadAndShouldersPattern()
+    elif pattern_name.lower() == "double_top_bottom":
+        return DoubleTopBottomPattern()
+    elif pattern_name.lower() == "ascending_triangle":
+        return AscendingTrianglePattern()
+    elif pattern_name.lower() == "bullish_engulfing":
+        return BullishEngulfingPattern()
+    else:
+        raise ValueError(f"الگوی {pattern_name} پشتیبانی نمی‌شود")
 
 def calculate_rsi(session: Session, coin_id: str, period: int = 14) -> float:
    """محاسبه RSI برای کوین خاص (آخرین مقدار)"""

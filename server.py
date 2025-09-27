@@ -40,6 +40,20 @@ def get_all_coins():
     finally:
         db.close()
 
+@app.get("/algorithms")
+def get_algorithms():
+    """Endpoint برای گرفتن لیست الگوریتم‌های معمول رمزارزها"""
+    algorithms = [
+        {"name": "SHA-256", "description": "الگوریتم هشینگ مورد استفاده در بیتکوین و بسیاری رمزارزهای دیگر برای امنیت و ماینینگ.", "used_in": "Bitcoin, Bitcoin Cash"},
+        {"name": "Scrypt", "description": "الگوریتم مقاوم در برابر ASIC برای ماینینگ سبک‌تر.", "used_in": "Litecoin, Dogecoin"},
+        {"name": "Ethash", "description": "الگوریتم اثبات کار برای اتریوم (قبل از انتقال به PoS).", "used_in": "Ethereum (قدیمی), Ethereum Classic"},
+        {"name": "CryptoNight", "description": "الگوریتم خصوصی برای رمزارزهای حریم خصوصی.", "used_in": "Monero, Bytecoin"},
+        {"name": "X11", "description": "الگوریتم ترکیبی از 11 هش برای امنیت بیشتر.", "used_in": "Dash, PIVX"},
+        {"name": "Proof of Work (PoW)", "description": "الگوریتم اجماع عمومی برای ماینینگ.", "used_in": "Bitcoin, Ethereum (قدیمی)"},
+        {"name": "Proof of Stake (PoS)", "description": "الگوریتم اجماع انرژی‌کارآمد.", "used_in": "Ethereum (جدید), Cardano"}
+    ]
+    return {"algorithms": algorithms}
+
 if __name__ == "__main__":
     import uvicorn
     uvicorn.run(app, host="0.0.0.0", port=8000)
