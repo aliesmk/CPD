@@ -10,8 +10,8 @@ class BinanceFetcher(BaseFetcher):
    def fetch_candles(self, symbol: str, interval: str, limit: int = 100) -> list:
        endpoint = f"{self.api_url}/api/v3/klines"
        params = {
-           "symbol": symbol.replace("/", ""),  # مثلاً BTC/USDT -> BTCUSDT
-           "interval": interval,  # مثل 1h, 4h, 1d
+           "symbol": symbol.replace("/", ""),
+           "interval": interval,
            "limit": limit
        }
        response = requests.get(endpoint, params=params)
@@ -46,6 +46,8 @@ class BinanceFetcher(BaseFetcher):
                "candle_type": candle_type,
                "upper_shadow": upper_shadow,
                "lower_shadow": lower_shadow,
-               "volume": volume
+               "volume": volume,
+               "timeframe": interval
+
            })
        return result

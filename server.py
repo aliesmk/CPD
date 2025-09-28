@@ -1,10 +1,11 @@
-from fastapi import FastAPI
+from fastapi import FastAPI, HTTPException
 from sqlalchemy import create_engine
 from sqlalchemy.orm import sessionmaker
 from src.config import DATABASE_URL
 from src.database.models import Base, Coin
 from src.api.coin_fetcher import CoinFetcher, save_coins_to_db
-
+from src.api.factory import get_fetcher, save_candles_to_db
+from src.analysis.pattern_factory import get_pattern_detector
 app = FastAPI(title="Crypto Pattern Detector API", version="1.0.0")
 
 # اتصال به دیتابیس
@@ -40,20 +41,49 @@ def get_all_coins():
     finally:
         db.close()
 
-@app.get("/algorithms")
-def get_algorithms():
-    """Endpoint برای گرفتن لیست الگوریتم‌های معمول رمزارزها"""
-    algorithms = [
-        {"name": "SHA-256", "description": "الگوریتم هشینگ مورد استفاده در بیتکوین و بسیاری رمزارزهای دیگر برای امنیت و ماینینگ.", "used_in": "Bitcoin, Bitcoin Cash"},
-        {"name": "Scrypt", "description": "الگوریتم مقاوم در برابر ASIC برای ماینینگ سبک‌تر.", "used_in": "Litecoin, Dogecoin"},
-        {"name": "Ethash", "description": "الگوریتم اثبات کار برای اتریوم (قبل از انتقال به PoS).", "used_in": "Ethereum (قدیمی), Ethereum Classic"},
-        {"name": "CryptoNight", "description": "الگوریتم خصوصی برای رمزارزهای حریم خصوصی.", "used_in": "Monero, Bytecoin"},
-        {"name": "X11", "description": "الگوریتم ترکیبی از 11 هش برای امنیت بیشتر.", "used_in": "Dash, PIVX"},
-        {"name": "Proof of Work (PoW)", "description": "الگوریتم اجماع عمومی برای ماینینگ.", "used_in": "Bitcoin, Ethereum (قدیمی)"},
-        {"name": "Proof of Stake (PoS)", "description": "الگوریتم اجماع انرژی‌کارآمد.", "used_in": "Ethereum (جدید), Cardano"}
-    ]
-    return {"algorithms": algorithms}
 
+@app.post("/candles/fetch/{symbol}")
+def fetch_and_save_candles(symbol: str, interval: str = "1h", limit: int = 50):
+    """Endpoint برای گرفتن و ذخیره کندل‌ها برای یک کوین خاص"""
+    db = SessionLocal()
+    try:
+        coin = db.query(Coin).filter(Coin.symbol == symbol).first()
+        if not coin:
+            raise HTTPException(status_code=404, detail=f"کوین {symbol} پیدا نشد")
+
+        fetcher = get_fetcher("kucoin")
+        candles = fetcher.fetch_candles(symbol=symbol, interval=interval, limit=limit)
+        saved_count = save_candles_to_db(db, candles)
+        return {"status": "success", "symbol": symbol, "interval": interval, "saved_candles": saved_count}
+    except ValueError as e:
+        raise HTTPException(status_code=400, detail=str(e))
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=f"خطای غیرمنتظره: {str(e)}")
+    finally:
+        db.close()
+
+
+@app.get("/patterns/detect/{symbol}/{interval}")
+def detect_patterns(symbol: str, interval: str = "1h"):
+    """Endpoint برای تشخیص الگوهای تکنیکال برای یک کوین و تایم‌فریم خاص"""
+    db = SessionLocal()
+    try:
+        coin = db.query(Coin).filter(Coin.symbol == symbol).first()
+        if not coin:
+            raise HTTPException(status_code=404, detail=f"کوین {symbol} پیدا نشد")
+
+        patterns = ["gartley", "butterfly", "head_and_shoulders", "double_top_bottom", "ascending_triangle",
+                    "bullish_engulfing"]
+        results = {}
+        for pattern in patterns:
+            detector = get_pattern_detector(pattern)
+            results[pattern] = detector.detect(db, coin.base_currency, num_candles=100)
+
+        return {"status": "success", "symbol": symbol, "interval": interval, "patterns_detected": results}
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=f"خطا: {str(e)}")
+    finally:
+        db.close()
 if __name__ == "__main__":
     import uvicorn
     uvicorn.run(app, host="0.0.0.0", port=8000)

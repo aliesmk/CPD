@@ -1,6 +1,6 @@
 from sqlalchemy import Column, Integer, String, Float, DateTime
 from sqlalchemy.ext.declarative import declarative_base
-from sqlalchemy import UniqueConstraint
+from sqlalchemy import UniqueConstraint, Index
 
 Base = declarative_base()
 
@@ -22,7 +22,8 @@ class CryptoPrice(Base):
     timeframe = Column(String, nullable=False)
 
     __table_args__ = (
-        UniqueConstraint('coin_id', 'timestamp', name='uix_coin_timestamp'),
+        UniqueConstraint('coin_id', 'timestamp', 'timeframe', name='uix_coin_timestamp_timeframe'),
+        Index('idx_coin_timeframe', 'coin_id', 'timeframe'),
     )
 
 
