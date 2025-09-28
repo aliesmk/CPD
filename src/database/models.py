@@ -1,4 +1,4 @@
-from sqlalchemy import Column, Integer, String, Float, DateTime
+from sqlalchemy import Column, Integer, String, Float, DateTime, JSON
 from sqlalchemy.ext.declarative import declarative_base
 from sqlalchemy import UniqueConstraint, Index
 
@@ -39,4 +39,20 @@ class Coin(Base):
 
     __table_args__ = (
         UniqueConstraint('symbol', name='uix_symbol'),
+    )
+
+
+class Report(Base):
+    __tablename__ = 'reports'
+
+    id = Column(Integer, primary_key=True)
+    symbol = Column(String, nullable=False)
+    timeframe = Column(String, nullable=False)
+    start_date = Column(DateTime, nullable=False)
+    end_date = Column(DateTime, nullable=False)
+    pattern = Column(String, nullable=False)
+    report_data = Column(JSON, nullable=False)
+
+    __table_args__ = (
+        UniqueConstraint('symbol', 'timeframe', 'start_date', 'end_date', 'pattern', name='uix_report_key'),
     )
