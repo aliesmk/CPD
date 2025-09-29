@@ -5,10 +5,10 @@ import pandas as pd
 
 class HeadAndShouldersPattern(BasePattern):
    """تشخیص الگوی Head and Shoulders"""
-   def detect(self, session: Session, coin_id: str, num_candles: int = 50) -> bool:
-       """تشخیص الگوی Head and Shoulders با استفاده از داده‌های کندل"""
+   def detect(self, session: Session, coin_id: str, position: int = -1, num_candles: int = 50) -> bool:
+       """تشخیص الگوی Head and Shoulders در موقعیت خاص"""
        records = session.query(CryptoPrice).filter(CryptoPrice.coin_id == coin_id).order_by(CryptoPrice.timestamp.desc()).limit(num_candles).all()
-       if len(records) < 7:  # حداقل 7 کندل برای شانه چپ، سر، شانه راست
+       if len(records) < 7:
            return False
 
        df = pd.DataFrame([{
@@ -17,13 +17,24 @@ class HeadAndShouldersPattern(BasePattern):
            'close': r.close
        } for r in records]).sort_index(ascending=False)
 
-       # ساده‌سازی: پیدا کردن پیک‌های high برای شانه چپ (left shoulder)، سر (head)، شانه راست (right shoulder)
-       highs = df['high'].rolling(window=3, center=True).max()
-       peaks = highs[highs == df['high']].index[:3]  # سه پیک آخر
+       # موقعیت را تنظیم کن
+       if position == -1:
+           position = len(df) - 1
+
+       # گرفتن داده‌های قبل از position
+       df_slice = df.iloc[:position + 1]
+
+       if len(df_slice) < 7:
+           return False
+
+       highs = df_slice['high'].rolling(window=3, center=True).max()
+       peaks = highs[highs == df_slice['high']].index[:3]  # سه پیک آخر
        if len(peaks) < 3:
            return False
 
-       left_shoulder, head, right_shoulder = df['high'].iloc[peaks]
-       if head > left_shoulder and head > right_shoulder and abs(left_shoulder - right_shoulder) < 0.05 * head:  # شانه‌ها تقریباً برابر
-           return True
+       left_shoulder, head, right_shoulder = df_slice['high'].iloc[peaks]
+       if head > left_shoulder and head > right_shoulder and abs(left_shoulder - right_shoulder) < 0.05 * head:
+           neckline_lows = df_slice['low'].iloc[peaks[1]:peaks[0]].min()
+           if df_slice['low'].iloc[-1] < neckline_lows:
+               return True
        return False

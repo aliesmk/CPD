@@ -1,3 +1,8 @@
-class BaseFetcher:
-    def fetch_candles(self, symbol: str, interval: str, limit: int = 100) -> list:
-        raise NotImplementedError("این متد باید در زیرکلاس‌ها پیاده‌سازی شود")
+from abc import ABC, abstractmethod
+
+class BaseFetcher(ABC):
+    """کلاس پایه برای فچرهای صرافی"""
+    @abstractmethod
+    def fetch_candles(self, symbol: str, interval: str, limit: int) -> list:
+        """گرفتن کندل‌ها از صرافی"""
+        pass
