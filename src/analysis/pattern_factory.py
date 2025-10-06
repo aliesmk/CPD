@@ -2,6 +2,7 @@ import pandas as pd
 import numpy as np
 from sqlalchemy.orm import Session
 from src.database.models import CryptoPrice
+from .patterns.base import BasePattern
 from .patterns.engulfing import EngulfingPattern
 from .patterns.gartley import GartleyPattern
 from .patterns.butterfly import ButterflyPattern
@@ -41,58 +42,62 @@ def get_pattern_detector(pattern_name: str) -> 'BasePattern':
     else:
         raise ValueError(f"الگوی {pattern_name} پشتیبانی نمی‌شود")
 
-def calculate_rsi(session: Session, coin_id: str, period: int = 14) -> float:
-   """محاسبه RSI برای کوین خاص (آخرین مقدار)"""
-   records = session.query(CryptoPrice).filter(CryptoPrice.coin_id == coin_id).order_by(CryptoPrice.timestamp.desc()).limit(200).all()
-   if len(records) < period + 1:
-       return None
-
-   df = pd.DataFrame([{
-       'timestamp': r.timestamp,
-       'close': r.close
-   } for r in records]).sort_values('timestamp')
-
-   delta = df['close'].diff()
-   gain = delta.where(delta > 0, 0)
-   loss = -delta.where(delta < 0, 0)
-
-   avg_gain = gain.rolling(window=period, min_periods=1).mean()
-   avg_loss = loss.rolling(window=period, min_periods=1).mean()
-
-   rs = avg_gain / avg_loss.replace(0, np.nan)
-   rsi = 100 - (100 / (1 + rs))
-
-   return rsi.iloc[-1]
-
-def calculate_sma(session: Session, coin_id: str, timeframe: str, period: int, timestamp: datetime) -> float:
-    """محاسبه Simple Moving Average در زمان خاص"""
-    records = session.query(CryptoPrice).filter(
+def calculate_rsi(db: Session, coin_id: str, timeframe: str, timestamp: datetime, periods: int = 14) -> float:
+    """محاسبه RSI برای یک کوین در زمان مشخص"""
+    records = db.query(CryptoPrice).filter(
         CryptoPrice.coin_id == coin_id,
         CryptoPrice.timeframe == timeframe,
         CryptoPrice.timestamp <= timestamp
-    ).order_by(CryptoPrice.timestamp.desc()).limit(period).all()
-    if len(records) < period:
-        return None
-    closes = [r.close for r in records]
-    return sum(closes) / len(closes)
+    ).order_by(CryptoPrice.timestamp.desc()).limit(periods + 1).all()
 
-def determine_trend(session: Session, coin_id: str, timeframe: str, timestamp: datetime, num_candles: int = 5) -> str:
-    """تشخیص روند (bullish/bearish/neutral) قبل یا بعد از زمان خاص"""
-    records = session.query(CryptoPrice).filter(
+    if len(records) < periods + 1:
+        return 0.0
+
+    prices = [r.close for r in records]
+    df = pd.DataFrame(prices, columns=['close'])
+    delta = df['close'].diff()
+    gain = delta.where(delta > 0, 0).rolling(window=periods).mean()
+    loss = -delta.where(delta < 0, 0).rolling(window=periods).mean()
+    rs = gain / loss if loss != 0 else 0
+    rsi = 100 - (100 / (1 + rs)) if rs != 0 else 0
+    return round(rsi, 2)
+
+def calculate_sma(db: Session, coin_id: str, timeframe: str, periods: int, timestamp: datetime) -> float:
+    """محاسبه میانگین متحرک ساده (SMA)"""
+    records = db.query(CryptoPrice).filter(
+        CryptoPrice.coin_id == coin_id,
+        CryptoPrice.timeframe == timeframe,
+        CryptoPrice.timestamp <= timestamp
+    ).order_by(CryptoPrice.timestamp.desc()).limit(periods).all()
+
+    if len(records) < periods:
+        return 0.0
+
+    prices = [r.close for r in records]
+    return round(sum(prices) / len(prices), 2)
+
+def determine_trend(db: Session, coin_id: str, timeframe: str, timestamp: datetime, num_candles: int = 5) -> str:
+    """تعیین روند (صعودی، نزولی یا خنثی)"""
+    records = db.query(CryptoPrice).filter(
         CryptoPrice.coin_id == coin_id,
         CryptoPrice.timeframe == timeframe,
         CryptoPrice.timestamp <= timestamp
     ).order_by(CryptoPrice.timestamp.desc()).limit(num_candles).all()
-    if len(records) < num_candles:
-        return "insufficient_data"
-    ups = sum(1 for r in records if r.close > r.open)
-    downs = sum(1 for r in records if r.close < r.open)
-    if ups > downs:
-        return "bullish"
-    elif downs > ups:
-        return "bearish"
-    return "neutral"
 
+    if len(records) < num_candles:
+        return "unknown"
+
+    closes = [r.close for r in records]
+    df = pd.DataFrame(closes, columns=['close'])
+    bullish_count = sum(df['close'].diff() > 0)
+    bearish_count = sum(df['close'].diff() < 0)
+
+    if bullish_count > bearish_count:
+        return "bullish"
+    elif bearish_count > bullish_count:
+        return "bearish"
+    else:
+        return "neutral"
 
 def calculate_fibonacci_levels(session: Session, coin_id: str, num_candles: int = 100) -> dict:
    """محاسبه سطوح فیبوناچی بر اساس high/low اخیر"""
