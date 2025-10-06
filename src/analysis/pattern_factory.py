@@ -51,15 +51,19 @@ def calculate_rsi(db: Session, coin_id: str, timeframe: str, timestamp: datetime
     ).order_by(CryptoPrice.timestamp.desc()).limit(periods + 1).all()
 
     if len(records) < periods + 1:
-        return 0.0
+        return 0
 
     prices = [r.close for r in records]
     df = pd.DataFrame(prices, columns=['close'])
     delta = df['close'].diff()
     gain = delta.where(delta > 0, 0).rolling(window=periods).mean()
     loss = -delta.where(delta < 0, 0).rolling(window=periods).mean()
-    rs = gain / loss if loss != 0 else 0
-    rsi = 100 - (100 / (1 + rs)) if rs != 0 else 0
+
+    gain_value = gain.iloc[-1] if not gain.empty else 0
+    loss_value = loss.iloc[-1] if not loss.empty else 0
+
+    rs = gain_value / loss_value if loss_value != 0 else float('inf')  # اگر loss صفر باشه، RS بی‌نهایت می‌شه
+    rsi = 100 - (100 / (1 + rs)) if rs != float('inf') else 100  # اگر RS بی‌نهایت باشه، RSI = 100
     return round(rsi, 2)
 
 def calculate_sma(db: Session, coin_id: str, timeframe: str, periods: int, timestamp: datetime) -> float:
@@ -71,7 +75,7 @@ def calculate_sma(db: Session, coin_id: str, timeframe: str, periods: int, times
     ).order_by(CryptoPrice.timestamp.desc()).limit(periods).all()
 
     if len(records) < periods:
-        return 0.0
+        return 0
 
     prices = [r.close for r in records]
     return round(sum(prices) / len(prices), 2)

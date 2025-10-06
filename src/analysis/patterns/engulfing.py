@@ -1,21 +1,21 @@
 from sqlalchemy.orm import Session
 import pandas as pd
-from typing import List, Dict
+from typing import List, Dict, Union
 from .base import BasePattern
 from src.database.models import CryptoPrice
 
 class EngulfingPattern(BasePattern):
     """تشخیص الگوی Engulfing (هم Bullish و هم Bearish)"""
 
-    def detect(self, session: Session, coin_id: str, num_candles: int = 100) -> List[Dict[str, any]]:
+    def detect(self, session: Session, coin_id: str, num_candles: int = 100) -> List[Dict[str, Union[Dict, str]]]:
         """تشخیص الگوی Engulfing در تمام موقعیت‌های داده‌ها"""
         records = session.query(CryptoPrice).filter(
             CryptoPrice.coin_id == coin_id
         ).order_by(
-            CryptoPrice.timestamp.asc()  # به ترتیب زمانی برای اسکن از قدیمی به جدید
+            CryptoPrice.timestamp.asc()
         ).limit(num_candles).all()
 
-        if len(records) < 6:  # حداقل 6 کندل برای بررسی روند
+        if len(records) < 6:
             return []
 
         df = pd.DataFrame([{
@@ -23,11 +23,11 @@ class EngulfingPattern(BasePattern):
             'close': r.close,
             'volume': r.volume,
             'id': r.id,
-            'date': r.timestamp
-        } for r in records])
+            'date': r.timestamp,
+            'timeframe': r.timeframe        } for r in records])
 
         detections = []
-        for position in range(1, len(df)):  # از 1 شروع کن تا قبلی وجود داشته باشه
+        for position in range(1, len(df)):
             prev_row = df.iloc[position - 1]
             curr_row = df.iloc[position]
 
@@ -35,6 +35,7 @@ class EngulfingPattern(BasePattern):
             curr_open, curr_close, curr_volume = curr_row['open'], curr_row['close'], curr_row['volume']
 
             prev_trend = self._check_prev_trend(df, position)
+            timeframe = curr_row['timeframe']
 
             prev_body_size = abs(prev_close - prev_open) / prev_open
             curr_body_size = abs(curr_close - curr_open) / curr_open
@@ -66,8 +67,11 @@ class EngulfingPattern(BasePattern):
                 detections.append({
                     "position": position,
                     "timestamp": curr_row['date'].isoformat(),
-                    "bullish": bullish,
-                    "bearish": bearish
+                    "detected": {"bullish": bullish, "bearish": bearish},
+                    "trend_before": prev_trend,
+                    "predicted_trend": self._get_trend(
+                        session, coin_id, timeframe, curr_row['date'], num_candles=5, is_future=True
+                    )
                 })
 
         return detections

@@ -1,40 +1,51 @@
 from sqlalchemy.orm import Session
-from src.database.models import CryptoPrice
-from .base import BasePattern
 import pandas as pd
+from typing import List, Dict, Union
+from .base import BasePattern
+from src.database.models import CryptoPrice
 
 class HeadAndShouldersPattern(BasePattern):
-   """تشخیص الگوی Head and Shoulders"""
-   def detect(self, session: Session, coin_id: str, position: int = -1, num_candles: int = 50) -> bool:
-       """تشخیص الگوی Head and Shoulders در موقعیت خاص"""
-       records = session.query(CryptoPrice).filter(CryptoPrice.coin_id == coin_id).order_by(CryptoPrice.timestamp.desc()).limit(num_candles).all()
-       if len(records) < 7:
-           return False
+    """تشخیص الگوی Head and Shoulders"""
 
-       df = pd.DataFrame([{
-           'high': r.high,
-           'low': r.low,
-           'close': r.close
-       } for r in records]).sort_index(ascending=False)
+    def detect(self, session: Session, coin_id: str, num_candles: int = 100) -> List[Dict[str, Union[Dict, str]]]:
+        """تشخیص الگوی Head and Shoulders در داده‌ها"""
+        records = session.query(CryptoPrice).filter(
+            CryptoPrice.coin_id == coin_id
+        ).order_by(CryptoPrice.timestamp.asc()).limit(num_candles).all()
 
-       # موقعیت را تنظیم کن
-       if position == -1:
-           position = len(df) - 1
+        if len(records) < 7:  # حداقل 7 کندل برای الگو
+            return []
 
-       # گرفتن داده‌های قبل از position
-       df_slice = df.iloc[:position + 1]
+        df = pd.DataFrame([{
+            'open': r.open,
+            'close': r.close,
+            'high': r.high,
+            'low': r.low,
+            'volume': r.volume,
+            'date': r.timestamp,
+            'timeframe': r.timeframe
+        } for r in records])
 
-       if len(df_slice) < 7:
-           return False
+        detections = []
+        for position in range(6, len(df)):  # نیاز به حداقل 7 کندل برای الگو
+            # فرض ساده برای تشخیص (باید منطق واقعی الگو رو پیاده کنی)
+            left_shoulder = df.iloc[position-5:position-3]
+            head = df.iloc[position-3:position-1]
+            right_shoulder = df.iloc[position-1:position+1]
 
-       highs = df_slice['high'].rolling(window=3, center=True).max()
-       peaks = highs[highs == df_slice['high']].index[:3]  # سه پیک آخر
-       if len(peaks) < 3:
-           return False
+            # منطق ساده برای مثال
+            if (
+                left_shoulder['high'].max() < head['high'].max() and
+                right_shoulder['high'].max() < head['high'].max() and
+                abs(left_shoulder['high'].max() - right_shoulder['high'].max()) < 0.01 * head['high'].max()
+            ):
+                timeframe = df.iloc[position]['timeframe']
+                detections.append({
+                    "position": position,
+                    "timestamp": df.iloc[position]['date'].isoformat(),
+                    "detected": True,
+                    "trend_before": self._get_trend(session, coin_id, timeframe, df.iloc[position]['date'], num_candles=5),
+                    "predicted_trend": self._get_trend(session, coin_id, timeframe, df.iloc[position]['date'], num_candles=5, is_future=True)
+                })
 
-       left_shoulder, head, right_shoulder = df_slice['high'].iloc[peaks]
-       if head > left_shoulder and head > right_shoulder and abs(left_shoulder - right_shoulder) < 0.05 * head:
-           neckline_lows = df_slice['low'].iloc[peaks[1]:peaks[0]].min()
-           if df_slice['low'].iloc[-1] < neckline_lows:
-               return True
-       return False
+        return detections
