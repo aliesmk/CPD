@@ -3,12 +3,10 @@ from sqlalchemy.orm import Session
 from datetime import datetime, timedelta
 from typing import List, Dict, Optional
 from src.database.models import Coin, Report, CryptoPrice
-from src.analysis.pattern_factory import get_pattern_detector, AVAILABLE_PATTERNS, calculate_rsi, calculate_sma, \
-    determine_trend
+from src.analysis.pattern_factory import get_pattern_detector, AVAILABLE_PATTERNS, calculate_rsi, calculate_sma, determine_trend
 from fastapi import HTTPException
 import numpy as np
 import pandas as pd
-
 
 class NumpyEncoder(json.JSONEncoder):
     def default(self, obj):
@@ -23,7 +21,6 @@ class NumpyEncoder(json.JSONEncoder):
         elif isinstance(obj, (pd.Timestamp, datetime)):
             return obj.isoformat()
         return super().default(obj)
-
 
 class ReportGenerator:
     """کلاس برای تولید گزارش‌های تحلیل الگوها"""
@@ -69,7 +66,6 @@ class ReportGenerator:
         ).first()
 
         if report_query:
-            # اگر گزارش از قبل ذخیره شده، از دیتابیس بخوانید
             return json.loads(report_query.report_data)
 
         # گرفتن داده‌های کندل
@@ -112,19 +108,28 @@ class ReportGenerator:
             current_dict = {}
             if current_detection_list and isinstance(current_detection_list, list):
                 last_detection = current_detection_list[-1] if current_detection_list else {}
+                pattern_type = "bullish" if last_detection.get("detected", {}).get("bullish", False) else "bearish" if last_detection.get("detected", {}).get("bearish", False) else p
+                trend_before = str(last_detection.get("trend_before", "unknown"))
                 current_dict = {
                     "detected": {
                         "bearish": bool(last_detection.get("detected", {}).get("bearish", False)),
                         "bullish": bool(last_detection.get("detected", {}).get("bullish", False))
                     },
-                    "trend_before": str(last_detection.get("trend_before", "unknown")),
-                    "predicted_trend": str(last_detection.get("predicted_trend", "unknown"))
+                    "trend_before": trend_before,
+                    "predicted_trend": str(detector._get_trend(
+                        self.db, coin.symbol, timeframe, records[-1].timestamp, num_candles=5, is_future=True,
+                        pattern_type=pattern_type, detections=detections
+                    ))
                 }
             else:
+                trend_before = str(detector._get_trend(self.db, coin.symbol, timeframe, records[-1].timestamp, num_candles=5) if records else "unknown")
                 current_dict = {
                     "detected": {"bearish": False, "bullish": False},
-                    "trend_before": "unknown",
-                    "predicted_trend": "unknown"
+                    "trend_before": trend_before,
+                    "predicted_trend": str(detector._get_trend(
+                        self.db, coin.symbol, timeframe, records[-1].timestamp, num_candles=5, is_future=True,
+                        pattern_type=p, detections=detections
+                    )) if records else "unknown"
                 }
 
             report[p] = {
@@ -152,15 +157,12 @@ class ReportGenerator:
 
         return report_clean
 
-    def _create_detection_detail(self, records: List[CryptoPrice], i: int, coin_id: str, timeframe: str, pattern: str,
-                                 detection: Optional[Dict] = None) -> Dict:
+    def _create_detection_detail(self, records: List[CryptoPrice], i: int, coin_id: str, timeframe: str, pattern: str, detection: Optional[Dict] = None) -> Dict:
         """ایجاد جزئیات برای یک تشخیص الگو"""
-        # محاسبه مقادیر
         rsi_value = calculate_rsi(self.db, coin_id, timeframe, records[i].timestamp)
         sma_20_value = calculate_sma(self.db, coin_id, timeframe, 20, records[i].timestamp)
         sma_50_value = calculate_sma(self.db, coin_id, timeframe, 50, records[i].timestamp)
 
-        # تعیین نوع الگو
         if detection and isinstance(detection.get("detected"), dict):
             pattern_type = "bullish" if detection["detected"].get("bullish") else "bearish"
         else:
@@ -179,7 +181,6 @@ class ReportGenerator:
             "success": False
         }
 
-        # محاسبه موفقیت
         if i + 5 < len(records):
             start_close = float(records[i].close)
             end_close = float(records[i + 5].close)
@@ -189,7 +190,8 @@ class ReportGenerator:
             elif "bearish" in pattern_type.lower():
                 detail["success"] = bool(end_close < start_close)
             else:
-                # برای الگوهای عمومی
                 detail["success"] = bool(end_close > start_close)
+
+        detail["success"] = int(detail["success"])
 
         return detail

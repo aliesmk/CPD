@@ -13,7 +13,7 @@ class HeadAndShouldersPattern(BasePattern):
             CryptoPrice.coin_id == coin_id
         ).order_by(CryptoPrice.timestamp.asc()).limit(num_candles).all()
 
-        if len(records) < 7:  # حداقل 7 کندل برای الگو
+        if len(records) < 7:
             return []
 
         df = pd.DataFrame([{
@@ -27,13 +27,11 @@ class HeadAndShouldersPattern(BasePattern):
         } for r in records])
 
         detections = []
-        for position in range(6, len(df)):  # نیاز به حداقل 7 کندل برای الگو
-            # فرض ساده برای تشخیص (باید منطق واقعی الگو رو پیاده کنی)
+        for position in range(6, len(df)):
             left_shoulder = df.iloc[position-5:position-3]
             head = df.iloc[position-3:position-1]
             right_shoulder = df.iloc[position-1:position+1]
 
-            # منطق ساده برای مثال
             if (
                 left_shoulder['high'].max() < head['high'].max() and
                 right_shoulder['high'].max() < head['high'].max() and
@@ -43,9 +41,18 @@ class HeadAndShouldersPattern(BasePattern):
                 detections.append({
                     "position": position,
                     "timestamp": df.iloc[position]['date'].isoformat(),
-                    "detected": True,
+                    "detected": {"bullish": False, "bearish": True},
                     "trend_before": self._get_trend(session, coin_id, timeframe, df.iloc[position]['date'], num_candles=5),
-                    "predicted_trend": self._get_trend(session, coin_id, timeframe, df.iloc[position]['date'], num_candles=5, is_future=True)
+                    "predicted_trend": self._get_trend(
+                        session, coin_id, timeframe, df.iloc[position]['date'], num_candles=5, is_future=True,
+                        pattern_type="bearish", detections=detections
+                    )
                 })
 
         return detections
+
+    def default_predicted_trend(self, pattern_type: str) -> str:
+        """روند پیش‌فرض بر اساس تعریف الگو"""
+        if pattern_type.lower() == "bearish":
+            return "bearish"
+        return "unknown"
