@@ -1,3 +1,5 @@
+from datetime import datetime
+
 from sqlalchemy import Column, Integer, String, Float, DateTime, JSON
 from sqlalchemy.ext.declarative import declarative_base
 from sqlalchemy import UniqueConstraint, Index
@@ -56,3 +58,19 @@ class Report(Base):
     __table_args__ = (
         UniqueConstraint('symbol', 'timeframe', 'start_date', 'end_date', 'pattern', name='uix_report_key'),
     )
+
+class SupportResistanceLevel(Base):
+    __tablename__ = 'support_resistance_levels'
+
+    id = Column(Integer, primary_key=True)
+    symbol = Column(String, nullable=False)
+    timeframe = Column(String, nullable=False)
+    level_type = Column(String, nullable=False)
+    price = Column(Float, nullable=False)
+    calculated_at = Column(DateTime, nullable=False)
+    strength = Column(String, nullable=False, default='weak')
+
+    # __table_args__ = (
+    #     UniqueConstraint('symbol', 'timeframe', 'level_type', 'calculated_at', name='uix_sr_level'),
+    #     Index('idx_symbol_timeframe', 'symbol', 'timeframe'),
+    # )

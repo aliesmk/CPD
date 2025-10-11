@@ -2,6 +2,7 @@ from fastapi import FastAPI, HTTPException
 from sqlalchemy import create_engine
 from sqlalchemy.orm import sessionmaker
 
+from src.analysis.calculator_factory import get_calculator
 from src.analysis.report_generator import ReportGenerator
 from src.config import DATABASE_URL
 from src.database.models import Base, Coin, Report, CryptoPrice
@@ -106,7 +107,22 @@ def get_pattern_report(symbol: str, timeframe: str = "1h", days_back: int = 7, p
     finally:
         db.close()
 
+@app.get("/analysis/support_resistance/{symbol}")
+def get_support_resistance(symbol: str, timeframe: str = "1h", num_candles: int = 100):
+    """Endpoint برای استخراج و ذخیره خطوط مقاومت و حمایت"""
+    db = SessionLocal()
+    try:
+        coin = db.query(Coin).filter(Coin.symbol == symbol).first()
+        if not coin:
+            raise HTTPException(status_code=404, detail=f"کوین {symbol} پیدا نشد")
 
+        calculator = get_calculator("support_resistance")
+        levels = calculator.calculate(db, symbol, timeframe, num_candles)
+        return {"status": "success", "symbol": symbol, "timeframe": timeframe, "levels": levels}
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=f"خطا: {str(e)}")
+    finally:
+        db.close()
 if __name__ == "__main__":
     import uvicorn
     uvicorn.run(app, host="0.0.0.0", port=8000)
